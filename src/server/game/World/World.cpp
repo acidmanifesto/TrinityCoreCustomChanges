@@ -1492,6 +1492,14 @@ void World::LoadConfigSettings(bool reload)
     m_int_configs[CONFIG_WINTERGRASP_NOBATTLETIME] = sConfigMgr->GetIntDefault("Wintergrasp.NoBattleTimer", 150);
     m_int_configs[CONFIG_WINTERGRASP_RESTART_AFTER_CRASH] = sConfigMgr->GetIntDefault("Wintergrasp.CrashRestartTimer", 10);
 
+    //Auto restart system
+    m_int_configs[CONFIG_AUTO_SERVER_RESTART_HOUR] = sConfigMgr->GetIntDefault("Server.Auto.RestartHour", 5);
+    if (m_int_configs[CONFIG_AUTO_SERVER_RESTART_HOUR] > 23)
+    {
+        m_int_configs[CONFIG_AUTO_SERVER_RESTART_HOUR] = 5;
+    }
+    m_bool_configs[CONFIG_DISABLE_RESTART] = sConfigMgr->GetBoolDefault("DisableRestart", true);
+
     // Stats limits
     m_bool_configs[CONFIG_STATS_LIMITS_ENABLE] = sConfigMgr->GetBoolDefault("Stats.Limits.Enable", false);
     m_float_configs[CONFIG_STATS_LIMITS_DODGE] = sConfigMgr->GetFloatDefault("Stats.Limits.Dodge", 95.0f);
@@ -2219,6 +2227,9 @@ void World::SetInitialWorldSettings()
         });
     }
 
+    TC_LOG_INFO("server", "Init Auto Restart time...");
+    InitServerAutoRestartTime();
+
     uint32 startupDuration = GetMSTimeDiffToNow(startupBegin);
 
     TC_LOG_INFO("server.worldserver", "World initialized in %u minutes %u seconds", (startupDuration / 60000), ((startupDuration % 60000) / 1000));
@@ -2367,6 +2378,9 @@ void World::Update(uint32 diff)
         TC_METRIC_TIMER("world_update_time", TC_METRIC_TAG("type", "Reset guild cap"));
         ResetGuildCap();
     }
+
+    if (currentGameTime > m_NextServerRestart)
+        AutoRestartServer();
 
     /// <ul><li> Handle auctions when the timer has passed
     if (m_timers[WUPDATE_AUCTIONS].Passed())
@@ -3080,6 +3094,46 @@ void World::SendServerMessage(ServerMessageType messageID, std::string stringPar
         player->SendDirectMessage(chatServerMessage.Write());
     else
         SendGlobalMessage(chatServerMessage.Write());
+}
+
+void World::InitServerAutoRestartTime()
+{
+    time_t serverRestartTime = uint64(sWorld->getWorldState(m_Auto_Restart_Time));
+    if (!serverRestartTime)
+        m_NextServerRestart = time_t(time(NULL));         // game time not yet init
+
+    // generate time by config
+    time_t curTime = time(NULL);
+    tm localTm = *localtime(&curTime);
+    localTm.tm_hour = getIntConfig(CONFIG_AUTO_SERVER_RESTART_HOUR);
+    localTm.tm_min = 0;
+    localTm.tm_sec = 0;
+
+    // current day reset time
+    time_t nextDayRestartTime = mktime(&localTm);
+
+    // next reset time before current moment
+    if (curTime >= nextDayRestartTime)
+        nextDayRestartTime += DAY;
+
+    // normalize reset time
+    m_NextServerRestart = serverRestartTime < curTime ? nextDayRestartTime - DAY : nextDayRestartTime;
+
+    if (!serverRestartTime)
+        sWorld->setWorldState(m_Auto_Restart_Time, uint64(m_NextServerRestart));
+
+    if (m_bool_configs[CONFIG_DISABLE_RESTART])
+        m_NextServerRestart += DAY * 1;
+}
+
+void World::AutoRestartServer()
+{
+    TC_LOG_INFO("server", "Automatic Server Restart in 60s.");
+    AutoRestartMSG = sConfigMgr->GetStringDefault("Restart.AutoRestartReason", "Daily Restart Maintenance Will happen in 1 minute.");
+    ShutdownServ(60, SHUTDOWN_MASK_RESTART, RESTART_EXIT_CODE, AutoRestartMSG);
+
+    m_NextServerRestart = time_t(m_NextServerRestart + DAY * 1);
+    sWorld->setWorldState(m_Auto_Restart_Time, uint64(m_NextServerRestart));
 }
 
 void World::UpdateSessions(uint32 diff)

@@ -4089,3 +4089,45 @@ Metric.OverallStatusInterval = 1
 
 #
 ###################################################################################################
+
+###################################################################################################
+#    Auto Daily Restart       #
+###############################
+#
+#
+#     DisableRestart = 1
+#        Description: Enables or Disable Daily Restart
+#
+#
+#        Default:    0 (Do Daily Restart: Default)
+#                    1 (Do Not Do Daily Restart)
+#
+
+DisableRestart = 0
+
+#
+#
+#     Server.Auto.RestartHour
+#        Description: The hour in which to start if Daily Restart is to happen, Local Server Time.
+#                      0 (Midnight)
+#					  12 (Noon)
+#                     23 (11 PM)
+#
+#
+#        Default:    5 (5 AM \ 0500  24-hour clock)
+#
+#
+
+Server.Auto.RestartHour = 5
+
+#
+#    Restart.AutoRestartReason
+#        Description: The shutdown reason given when the Auto Restart Hour is reached. The server
+#                     will use a fixed time of 1 minute and the reason for shutdown will be this
+#                     message.
+#        Default:     "Daily Restart Maintenance Will happen in 1 minute."
+
+Restart.AutoRestartReason = "Daily Restart Maintenance Will happen in 1 minute."
+
+#
+###################################################################################################
